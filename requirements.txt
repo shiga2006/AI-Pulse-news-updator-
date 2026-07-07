@@ -1,0 +1,7 @@
+streamlit==1.38.0
+feedparser==6.0.11
+requests==2.32.3
+anthropic==0.34.2
+apscheduler==3.10.4
+bcrypt==4.2.0
+python-dotenv==1.0.1
