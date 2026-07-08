@@ -21,3 +21,22 @@ Built as a final-year AIML project to solve a real problem: staying updated with
 🤖 AI Assistant — Chat with an integrated assistant to get updates explained in simple terms
 
 ⏰ Scheduled Refresh — Background job keeps the news feed current automatically
+
+🛠️ Tech Stack
+
+
+Frontend + Backend   ->    Streamlit
+
+Database           ->      SQLiteNews 
+
+Fetching             ->    feedparser (RSS) + requests (APIs)
+
+Summarization         ->   LLM API (Gemini)
+
+AI Assistant   ->          LLM API with context retrieval over stored articles
+
+Scheduling        ->       APScheduler
+
+Deployment          ->     Streamlit Community Cloud
+
+Pure Python stack — no separate frontend framework required.
