@@ -1,9 +1,10 @@
 """
 pages/1_Feed.py
-Displays the AI news feed as highlight cards.
-Will be connected to real fetched data starting Day 2-3.
+Displays the AI news feed as highlight cards, pulling real data from the DB.
+Run fetcher/fetch_news.py and summarizer/summarize.py first to populate articles.
 """
 import streamlit as st
+from db.database import get_connection
 
 st.set_page_config(page_title="Feed - AI Pulse", page_icon="📰")
 
@@ -12,14 +13,40 @@ if not st.session_state.get("logged_in"):
     st.stop()
 
 st.title("📰 Latest AI Updates")
-st.info("Coming on Day 2-3: live articles fetched from RSS/APIs, "
-        "summarized by AI into highlights and expandable detail views.")
 
-# Placeholder example of what a highlight card will look like
-with st.container(border=True):
-    st.subheader("Example: New model release announced")
-    st.caption("Source: OpenAI Blog · 2 days ago")
-    st.write("This is a placeholder highlight. Real AI-generated summaries land on Day 3.")
-    with st.expander("Read more"):
-        st.write("Detailed AI-generated explanation will appear here.")
-        st.markdown("[Official source →](https://openai.com)")
+
+def load_articles(limit: int = 30):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT title, link, source, topic, ai_highlight, ai_detailed_summary, published_at
+        FROM articles
+        WHERE ai_highlight IS NOT NULL
+        ORDER BY fetched_at DESC
+        LIMIT ?
+    """, (limit,))
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+
+articles = load_articles()
+
+if not articles:
+    st.info(
+        "No summarized articles yet. Run these two commands from your terminal:\n\n"
+        "```\npython -m fetcher.fetch_news\npython -m summarizer.summarize\n```"
+    )
+else:
+    for title, link, source, topic, highlight, detailed, published_at in articles:
+        with st.container(border=True):
+            st.subheader(highlight)
+            meta = f"Source: {source}"
+            if topic:
+                meta += f" · {topic}"
+            if published_at:
+                meta += f" · {published_at[:10]}"
+            st.caption(meta)
+            with st.expander("Read more"):
+                st.write(detailed)
+                st.markdown(f"[Official source →]({link})")
