@@ -1,8 +1,9 @@
 """
 pages/3_Preferences.py
-Lets users pick which AI topics they care about. Wired to DB on Day 4.
+Lets users pick which AI topics they care about. Saved to DB, read by the Feed page.
 """
 import streamlit as st
+from db.preferences import ALL_TOPICS, get_user_preferences, set_user_preferences
 
 st.set_page_config(page_title="Preferences - AI Pulse", page_icon="⚙️")
 
@@ -11,12 +12,18 @@ if not st.session_state.get("logged_in"):
     st.stop()
 
 st.title("⚙️ Your Topic Preferences")
-st.info("Coming on Day 4: choose topics below and your Feed will filter to match.")
+st.write("Pick the topics you care about. Your Feed will show only these "
+         "(leave empty to see everything).")
 
-topics = ["Large Language Models", "Computer Vision", "Robotics",
-          "AI Research Papers", "AI Tools & Products", "AI Policy & Ethics"]
+user_id = st.session_state.user_id
+current_prefs = get_user_preferences(user_id)
 
-selected = st.multiselect("Select topics you're interested in:", topics)
+selected = st.multiselect(
+    "Select topics you're interested in:",
+    ALL_TOPICS,
+    default=current_prefs,
+)
 
 if st.button("Save Preferences"):
-    st.success("Preferences saved (placeholder — DB wiring comes Day 4).")
+    set_user_preferences(user_id, selected)
+    st.success("Preferences saved! Head to the Feed to see it filtered.")
