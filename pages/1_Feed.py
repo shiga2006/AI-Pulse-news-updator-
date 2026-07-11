@@ -41,6 +41,15 @@ def load_articles(topics: list[str] | None, limit: int = 30):
     return rows
 
 
+def count_all_summarized() -> int:
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM articles WHERE ai_highlight IS NOT NULL")
+    count = cur.fetchone()[0]
+    conn.close()
+    return count
+
+
 user_prefs = get_user_preferences(st.session_state.user_id)
 
 if user_prefs:
@@ -52,10 +61,21 @@ else:
 articles = load_articles(user_prefs if user_prefs else None)
 
 if not articles:
-    st.info(
-        "No summarized articles yet. Run these two commands from your terminal:\n\n"
-        "```\npython -m fetcher.fetch_news\npython -m summarizer.summarize\n```"
-    )
+    total_summarized = count_all_summarized()
+    if total_summarized == 0:
+        st.info(
+            "No summarized articles yet. Run these two commands from your terminal:\n\n"
+            "```\npython -m fetcher.fetch_news\npython -m summarizer.summarize\n```"
+        )
+    else:
+        st.warning(
+            f"You have {total_summarized} summarized article(s) in total, but none "
+            f"match your selected topic(s): **{', '.join(user_prefs)}**.\n\n"
+            "This can happen if that topic's source hasn't published anything new, "
+            "or hasn't been summarized yet. Try:\n"
+            "- Clearing your filter in **Preferences** to see everything, or\n"
+            "- Running `python -m summarizer.summarize` again to clear any backlog"
+        )
 else:
     for title, link, source, topic, highlight, detailed, published_at in articles:
         with st.container(border=True):
