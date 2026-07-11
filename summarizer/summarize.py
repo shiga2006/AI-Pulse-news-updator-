@@ -15,8 +15,11 @@ import os
 import json
 import time
 from google import genai
+from dotenv import load_dotenv
 
 from db.database import get_connection
+
+load_dotenv()
 
 MODEL_NAME = "gemini-2.5-flash"  # free tier model, good balance of speed/quality
 
@@ -85,19 +88,31 @@ def summarize_article(title: str, raw_summary: str) -> dict:
     return parsed
 
 
-def get_unsummarized_articles(limit: int = 20) -> list[dict]:
-    """Fetches articles that haven't been summarized yet (ai_highlight IS NULL)."""
+def get_unsummarized_articles(limit: int = 20, per_source: int = 4) -> list[dict]:
+    """
+    Fetches articles that haven't been summarized yet (ai_highlight IS NULL),
+    picking evenly across sources (up to `per_source` from each) instead of
+    just the newest overall. Without this, a high-volume source can crowd
+    out every other source from the batch.
+    """
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
-        SELECT id, title, raw_summary FROM articles
-        WHERE ai_highlight IS NULL
+        SELECT id, title, raw_summary, source FROM (
+            SELECT id, title, raw_summary, source, fetched_at,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY source ORDER BY fetched_at DESC
+                   ) AS rn
+            FROM articles
+            WHERE ai_highlight IS NULL
+        )
+        WHERE rn <= ?
         ORDER BY fetched_at DESC
         LIMIT ?
-    """, (limit,))
+    """, (per_source, limit))
     rows = cur.fetchall()
     conn.close()
-    return [{"id": r[0], "title": r[1], "raw_summary": r[2]} for r in rows]
+    return [{"id": r[0], "title": r[1], "raw_summary": r[2], "source": r[3]} for r in rows]
 
 
 def save_summary(article_id: int, highlight: str, detailed_summary: str):
@@ -113,14 +128,15 @@ def save_summary(article_id: int, highlight: str, detailed_summary: str):
     conn.close()
 
 
-def summarize_pending_articles(limit: int = 20, delay_seconds: float = 4.0) -> dict:
+def summarize_pending_articles(limit: int = 25, per_source: int = 5, delay_seconds: float = 4.0) -> dict:
     """
-    Main entry point: summarizes up to `limit` unsummarized articles.
+    Main entry point: summarizes up to `limit` unsummarized articles, picking
+    up to `per_source` from each source so no single feed dominates the batch.
     `delay_seconds` between calls respects Gemini free-tier rate limits
     (roughly 10-15 requests/minute - 4s spacing keeps us safely under that).
     Returns a summary dict with counts.
     """
-    articles = get_unsummarized_articles(limit=limit)
+    articles = get_unsummarized_articles(limit=limit, per_source=per_source)
     succeeded = 0
     failed = 0
 

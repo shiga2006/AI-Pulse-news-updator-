@@ -4,8 +4,11 @@ Main entry point for AI Pulse. Handles login/signup gate.
 Once logged in, users are directed to the Feed page (see pages/ folder).
 """
 import streamlit as st
+from dotenv import load_dotenv
 from db.database import init_db
 from auth.auth_utils import create_user, authenticate_user
+
+load_dotenv()
 
 st.set_page_config(page_title="AI Pulse", page_icon="🧠", layout="wide")
 
