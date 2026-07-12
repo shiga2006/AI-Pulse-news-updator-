@@ -7,10 +7,26 @@ import streamlit as st
 from dotenv import load_dotenv
 from db.database import init_db
 from auth.auth_utils import create_user, authenticate_user
+from fetcher.scheduler import start_scheduler
 
 load_dotenv()
 
 st.set_page_config(page_title="AI Pulse", page_icon="🧠", layout="wide")
+
+
+@st.cache_resource
+def _init_background_scheduler():
+    """
+    st.cache_resource ensures this runs exactly once per server process,
+    no matter how many times Streamlit reruns the script (which happens on
+    every click) or how many users/sessions connect. Without this, every
+    rerun would call start_scheduler() again - harmless thanks to its own
+    internal guard, but wasteful.
+    """
+    return start_scheduler()
+
+
+_init_background_scheduler()
 
 # Ensure DB and tables exist before anything else runs
 init_db()
