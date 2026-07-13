@@ -1,14 +1,17 @@
 """
 pages/1_Feed.py
 Displays the AI news feed as highlight cards, pulling real data from the DB.
-Run fetcher/fetch_news.py and summarizer/summarize.py first to populate articles.
+Each card has: Save for later, Like, Share, and an inline "Ask about this"
+AI helper scoped to just that article (like LeetCode's per-problem AI help,
+or an IDE explaining the currently open file).
 """
 import streamlit as st
-from datetime import datetime
 from db.database import get_connection
 from db.preferences import get_user_preferences
+from db.engagement import toggle_save, is_saved, toggle_like, has_liked, get_like_count
 from fetcher.fetch_news import fetch_all_sources
 from summarizer.summarize import summarize_pending_articles
+from assistant.chat_assistant import ask_about_article
 
 st.set_page_config(page_title="Feed - AI Pulse", page_icon="📰")
 
@@ -16,18 +19,19 @@ if not st.session_state.get("logged_in"):
     st.warning("Please log in from the main page first.")
     st.stop()
 
+user_id = st.session_state.user_id
+
 header_col, button_col = st.columns([4, 1])
 with header_col:
     st.title("📰 Latest AI Updates")
 with button_col:
-    st.write("")  # small vertical spacer to align button with title
+    st.write("")
     refresh_clicked = st.button("🔄 Refresh Now", use_container_width=True)
 
 if refresh_clicked:
     with st.spinner("Fetching new articles..."):
         fetch_result = fetch_all_sources()
     with st.spinner("Summarizing new articles..."):
-        # A few passes so backlog clears in one click, matching scheduler.py's approach
         total_summarized = 0
         for _ in range(4):
             sm_result = summarize_pending_articles()
@@ -60,7 +64,7 @@ def load_articles(topics: list[str] | None, limit: int = 30):
     if topics:
         placeholders = ",".join("?" for _ in topics)
         cur.execute(f"""
-            SELECT title, link, source, topic, ai_highlight, ai_detailed_summary, published_at
+            SELECT id, title, link, source, topic, ai_highlight, ai_detailed_summary, published_at
             FROM articles
             WHERE ai_highlight IS NOT NULL AND topic IN ({placeholders})
             ORDER BY fetched_at DESC
@@ -68,7 +72,7 @@ def load_articles(topics: list[str] | None, limit: int = 30):
         """, (*topics, limit))
     else:
         cur.execute("""
-            SELECT title, link, source, topic, ai_highlight, ai_detailed_summary, published_at
+            SELECT id, title, link, source, topic, ai_highlight, ai_detailed_summary, published_at
             FROM articles
             WHERE ai_highlight IS NOT NULL
             ORDER BY fetched_at DESC
@@ -88,7 +92,7 @@ def count_all_summarized() -> int:
     return count
 
 
-user_prefs = get_user_preferences(st.session_state.user_id)
+user_prefs = get_user_preferences(user_id)
 
 if user_prefs:
     st.caption(f"Filtered to: {', '.join(user_prefs)} · "
@@ -115,7 +119,7 @@ if not articles:
             "- Running `python -m summarizer.summarize` again to clear any backlog"
         )
 else:
-    for title, link, source, topic, highlight, detailed, published_at in articles:
+    for article_id, title, link, source, topic, highlight, detailed, published_at in articles:
         with st.container(border=True):
             st.subheader(highlight)
             meta = f"Source: {source}"
@@ -124,6 +128,58 @@ else:
             if published_at:
                 meta += f" · {published_at[:10]}"
             st.caption(meta)
+
             with st.expander("Read more"):
                 st.write(detailed)
                 st.markdown(f"[Official source →]({link})")
+
+            # --- Engagement row: Save, Like, Share ---
+            save_col, like_col, share_col = st.columns(3)
+
+            with save_col:
+                saved = is_saved(user_id, article_id)
+                label = "🔖 Saved" if saved else "🔖 Save for later"
+                if st.button(label, key=f"save_{article_id}", use_container_width=True):
+                    toggle_save(user_id, article_id)
+                    st.rerun()
+
+            with like_col:
+                liked = has_liked(user_id, article_id)
+                like_count = get_like_count(article_id)
+                label = f"❤️ Liked ({like_count})" if liked else f"🤍 Like ({like_count})"
+                if st.button(label, key=f"like_{article_id}", use_container_width=True):
+                    toggle_like(user_id, article_id)
+                    st.rerun()
+
+            with share_col:
+                with st.popover("🔗 Share", use_container_width=True):
+                    st.caption("Copy this link to share:")
+                    st.code(link, language=None)
+
+            # --- Inline AI helper, scoped to just this article ---
+            with st.expander("🤖 Ask AI about this update"):
+                article_ctx = {
+                    "title": title, "source": source, "topic": topic,
+                    "detailed_summary": detailed,
+                }
+                q_key = f"article_q_{article_id}"
+                a_key = f"article_a_{article_id}"
+
+                question = st.text_input(
+                    "Ask a question about this specific update",
+                    key=q_key,
+                    placeholder="e.g. Why does this matter for developers?",
+                )
+                if st.button("Ask", key=f"ask_btn_{article_id}"):
+                    if question.strip():
+                        with st.spinner("Thinking..."):
+                            try:
+                                answer = ask_about_article(article_ctx, question)
+                                st.session_state[a_key] = answer
+                            except RuntimeError as e:
+                                st.session_state[a_key] = f"⚠️ {e}"
+                    else:
+                        st.session_state[a_key] = "⚠️ Please type a question first."
+
+                if st.session_state.get(a_key):
+                    st.markdown(f"**Answer:** {st.session_state[a_key]}")
