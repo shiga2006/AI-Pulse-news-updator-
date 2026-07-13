@@ -70,5 +70,31 @@ def init_db():
         )
     """)
 
+    # "Watch later" - a user can bookmark an article to revisit
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS saved_articles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            article_id INTEGER NOT NULL,
+            saved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (article_id) REFERENCES articles(id),
+            UNIQUE(user_id, article_id)
+        )
+    """)
+
+    # Likes - one like per user per article (toggleable)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS article_likes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            article_id INTEGER NOT NULL,
+            liked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (article_id) REFERENCES articles(id),
+            UNIQUE(user_id, article_id)
+        )
+    """)
+
     conn.commit()
     conn.close()

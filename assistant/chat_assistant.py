@@ -148,3 +148,47 @@ def ask_assistant(question: str) -> dict:
         "answer": response.text.strip(),
         "sources": articles,
     }
+
+
+ARTICLE_SCOPED_PROMPT_TEMPLATE = """You are helping a student understand ONE specific AI news article.
+Answer the user's question using ONLY the article below - like an inline
+"explain this" helper (similar to how LeetCode explains a problem, or an
+IDE explains the currently open file). Do not pull in outside knowledge or
+other AI news you might know about; stick to this article.
+
+If the question can't be answered from this article's content, say so
+honestly rather than guessing.
+
+--- ARTICLE ---
+Title: {title}
+Source: {source} | Topic: {topic}
+Summary: {detailed_summary}
+--- END ARTICLE ---
+
+User question: {question}
+"""
+
+
+def ask_about_article(article: dict, question: str) -> str:
+    """
+    Scoped Q&A for a single article - this is the "per-article assistant"
+    (LeetCode/VSCode-style: help scoped to what the user is currently
+    looking at, not a search across everything). Unlike ask_assistant(),
+    this never does a DB-wide search - the article is passed in directly
+    by the caller (the Feed card that's already showing it), so context is
+    guaranteed correct and this stays fast and cheap.
+
+    Expects `article` dict with keys: title, source, topic, detailed_summary.
+    Returns the answer text directly (no sources list needed - there's only
+    ever one source: the article itself).
+    """
+    client = _get_client()
+    prompt = ARTICLE_SCOPED_PROMPT_TEMPLATE.format(
+        title=article["title"],
+        source=article.get("source", "Unknown"),
+        topic=article.get("topic", "Unknown"),
+        detailed_summary=article.get("detailed_summary", "(no summary available)"),
+        question=question,
+    )
+    response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
+    return response.text.strip()
