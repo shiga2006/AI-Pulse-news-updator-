@@ -9,6 +9,7 @@ import streamlit as st
 from db.database import get_connection
 from db.preferences import get_user_preferences
 from db.engagement import toggle_save, is_saved, toggle_like, has_liked, get_like_count
+from db.comments import add_comment, get_comments, delete_comment, get_comment_count
 from fetcher.fetch_news import fetch_all_sources
 from summarizer.summarize import summarize_pending_articles
 from assistant.chat_assistant import ask_about_article
@@ -133,8 +134,8 @@ else:
                 st.write(detailed)
                 st.markdown(f"[Official source →]({link})")
 
-            # --- Engagement row: Save, Like, Share ---
-            save_col, like_col, share_col = st.columns(3)
+            # --- Engagement row: Save, Like, Share, Comments ---
+            save_col, like_col, share_col, comment_col = st.columns(4)
 
             with save_col:
                 saved = is_saved(user_id, article_id)
@@ -155,6 +156,41 @@ else:
                 with st.popover("🔗 Share", use_container_width=True):
                     st.caption("Copy this link to share:")
                     st.code(link, language=None)
+
+            with comment_col:
+                comment_count = get_comment_count(article_id)
+                st.caption(f"💬 {comment_count} comment(s)")
+
+            # --- Comments: personal opinions/notes on this article ---
+            with st.expander(f"💬 Comments ({get_comment_count(article_id)})"):
+                new_comment = st.text_area(
+                    "Share your thoughts on this update",
+                    key=f"comment_input_{article_id}",
+                    placeholder="What do you think about this?",
+                    height=80,
+                )
+                if st.button("Post Comment", key=f"post_comment_{article_id}"):
+                    posted = add_comment(user_id, article_id, new_comment)
+                    if posted:
+                        st.rerun()
+                    else:
+                        st.warning("Comment can't be empty.")
+
+                st.divider()
+                comments = get_comments(article_id)
+                if not comments:
+                    st.caption("No comments yet. Be the first to share your opinion.")
+                else:
+                    for c in comments:
+                        c_col, del_col = st.columns([5, 1])
+                        with c_col:
+                            st.markdown(f"**{c['username']}** · {c['created_at'][:16]}")
+                            st.write(c["text"])
+                        with del_col:
+                            if c["user_id"] == user_id:
+                                if st.button("🗑️", key=f"del_comment_{c['id']}"):
+                                    delete_comment(c["id"], user_id)
+                                    st.rerun()
 
             # --- Inline AI helper, scoped to just this article ---
             with st.expander("🤖 Ask AI about this update"):
