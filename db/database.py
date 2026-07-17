@@ -96,5 +96,19 @@ def init_db():
         )
     """)
 
+    # Comments - a user's personal opinion/note on an article. Many per user
+    # per article are allowed (unlike save/like, comments aren't a toggle).
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS article_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            article_id INTEGER NOT NULL,
+            comment_text TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (article_id) REFERENCES articles(id)
+        )
+    """)
+
     conn.commit()
     conn.close()
