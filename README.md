@@ -4,6 +4,8 @@ AI Pulse is a web platform that automatically aggregates the latest AI news from
 
 Built as a final-year AIML project to solve a real problem: **staying updated with the fast-moving AI industry without spending hours browsing multiple sites.**
 
+Try the demo here !!!
+https://ai-pulse-news-updator.streamlit.app/
 ---
 
 ## ✨ Features
